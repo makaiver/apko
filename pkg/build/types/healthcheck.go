@@ -17,7 +17,7 @@ import (
 type ImageHealthcheck struct {
 	// Test is a list starting with CMD or CMD-SHELL, followed by the command,
 	// or a single NONE to disable the check.
-	Test []string `json:"test" yaml:"test" jsonschema:"minItems=1"`
+	Test HealthcheckTest `json:"test" yaml:"test" jsonschema:"minItems=1"`
 	// Interval is the time between checks, expressed as a duration such as 30s.
 	Interval string `json:"interval,omitempty" yaml:"interval,omitempty"`
 	// Timeout is the maximum duration of an individual check.
@@ -26,6 +26,24 @@ type ImageHealthcheck struct {
 	StartPeriod string `json:"start-period,omitempty" yaml:"start-period,omitempty"`
 	// Retries is the number of consecutive failures before the container is unhealthy.
 	Retries HealthcheckRetries `json:"retries,omitempty" yaml:"retries,omitempty" jsonschema:"minimum=0"`
+}
+
+// HealthcheckTest contains the healthcheck mode and its arguments.
+type HealthcheckTest []string
+
+// JSONSchemaAlias keeps the field's minItems constraint on the array schema.
+func (HealthcheckTest) JSONSchemaAlias() any { return []string(nil) }
+
+func (t *HealthcheckTest) UnmarshalYAML(node *yaml.Node) error {
+	// yaml.v3 skips null entries when decoding []string, shifting later arguments.
+	if node.Kind == yaml.SequenceNode {
+		for i, arg := range node.Content {
+			if arg.ShortTag() == "!!null" {
+				return fmt.Errorf("healthcheck.test[%d] cannot be null", i)
+			}
+		}
+	}
+	return node.Decode((*[]string)(t))
 }
 
 // HealthcheckRetries is an integer retry count that rejects floating-point YAML values.

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"chainguard.dev/apko/pkg/build/types"
 )
@@ -41,6 +42,27 @@ func TestHealthcheckValidation(t *testing.T) {
 			require.ErrorContains(t, ic.Validate(), tc.wantError)
 		})
 	}
+}
+
+func TestHealthcheckTestYAML(t *testing.T) {
+	for _, tc := range []struct {
+		name, input, wantError string
+	}{
+		{"null executable", "test: [CMD, null, /bin/true]", "healthcheck.test[1] cannot be null"},
+		{"null argument", "test: [CMD, /bin/echo, ~]", "healthcheck.test[2] cannot be null"},
+		{"aliased null", "timeout: &unset null\ntest: [CMD, /bin/echo, *unset]", "healthcheck.test[2] cannot be null"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var check types.ImageHealthcheck
+			require.ErrorContains(t, yaml.Unmarshal([]byte(tc.input), &check), tc.wantError)
+		})
+	}
+
+	var check types.ImageHealthcheck
+	require.NoError(t, yaml.Unmarshal([]byte(`test: [CMD, /bin/echo, &word "null", *word, ""]`), &check))
+	config, err := check.ToHealthConfig()
+	require.NoError(t, err)
+	require.Equal(t, []string{"CMD", "/bin/echo", "null", "null", ""}, config.Test)
 }
 
 func TestHealthcheckFractionalRetries(t *testing.T) {
