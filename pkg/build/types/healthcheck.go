@@ -10,6 +10,7 @@ import (
 	"time"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"gopkg.in/yaml.v3"
 )
 
 // ImageHealthcheck configures a Docker-compatible container healthcheck.
@@ -24,7 +25,22 @@ type ImageHealthcheck struct {
 	// StartPeriod is the duration of the startup grace period.
 	StartPeriod string `json:"start-period,omitempty" yaml:"start-period,omitempty"`
 	// Retries is the number of consecutive failures before the container is unhealthy.
-	Retries int `json:"retries,omitempty" yaml:"retries,omitempty" jsonschema:"minimum=0"`
+	Retries HealthcheckRetries `json:"retries,omitempty" yaml:"retries,omitempty" jsonschema:"minimum=0"`
+}
+
+// HealthcheckRetries is an integer retry count that rejects floating-point YAML values.
+type HealthcheckRetries int
+
+func (r *HealthcheckRetries) UnmarshalYAML(node *yaml.Node) error {
+	if node.ShortTag() != "!!int" {
+		return fmt.Errorf("healthcheck.retries must be an integer")
+	}
+	var count int
+	if err := node.Decode(&count); err != nil {
+		return fmt.Errorf("invalid healthcheck.retries: %w", err)
+	}
+	*r = HealthcheckRetries(count)
+	return nil
 }
 
 // ToHealthConfig validates the healthcheck and converts it to image metadata.
@@ -52,11 +68,16 @@ func (h *ImageHealthcheck) ToHealthConfig() (*v1.HealthConfig, error) {
 	default:
 		return nil, fmt.Errorf("healthcheck.test mode %q must be CMD, CMD-SHELL, or NONE", h.Test[0])
 	}
+	for i, arg := range h.Test[1:] {
+		if strings.ContainsRune(arg, '\x00') {
+			return nil, fmt.Errorf("healthcheck.test[%d] contains a NUL byte", i+1)
+		}
+	}
 	if h.Retries < 0 {
 		return nil, fmt.Errorf("healthcheck.retries cannot be negative")
 	}
 
-	config := &v1.HealthConfig{Test: slices.Clone(h.Test), Retries: h.Retries}
+	config := &v1.HealthConfig{Test: slices.Clone(h.Test), Retries: int(h.Retries)}
 	for _, timing := range []struct {
 		name  string
 		value string
@@ -73,8 +94,9 @@ func (h *ImageHealthcheck) ToHealthConfig() (*v1.HealthConfig, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid healthcheck.%s: %w", timing.name, err)
 		}
-		// Docker accepts zero for an unset duration and requires at least 1ms otherwise.
-		if duration != 0 && duration < time.Millisecond {
+		// ParseDuration truncates fractional nanoseconds. Only a duration with
+		// all zero digits can use zero to select the runtime default.
+		if duration < time.Millisecond && strings.ContainsAny(timing.value, "123456789") {
 			return nil, fmt.Errorf("healthcheck.%s must be zero or at least 1ms", timing.name)
 		}
 		*timing.dst = duration

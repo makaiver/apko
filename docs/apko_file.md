@@ -174,7 +174,7 @@ and requires a shell in the image. Use `test: ["NONE"]` to disable a check inher
 
 The timing fields are optional Go duration strings, such as `500ms` or `1m30s`. Each
 nonzero duration must be at least 1ms. Omitting a timing field or setting it to zero leaves
-that value to the runtime. `retries` counts consecutive failures and must be nonnegative.
+that value to the runtime. `retries` counts consecutive failures and must be a nonnegative integer.
 
 Healthchecks are a Docker extension to the OCI image config. Runtime support depends on the
 consumer and image format. Kubernetes probes are configured on the Pod spec.
