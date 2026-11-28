@@ -203,6 +203,8 @@ type ImageConfiguration struct {
 	Cmd string `json:"cmd,omitempty" yaml:"cmd,omitempty"`
 	// Optional: The stop signal used to suspend the execution of the containers process
 	StopSignal string `json:"stop-signal,omitempty" yaml:"stop-signal,omitempty"`
+	// Optional: Runtime healthcheck stored as Docker image metadata.
+	Healthcheck *ImageHealthcheck `json:"healthcheck,omitempty" yaml:"healthcheck,omitempty"`
 	// Optional: The working directory of the container
 	WorkDir string `json:"work-dir,omitempty" yaml:"work-dir,omitempty"`
 	// Optional: Account configuration for the container image

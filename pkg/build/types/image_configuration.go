@@ -96,6 +96,7 @@ func (ic *ImageConfiguration) parse(ctx context.Context, configData []byte, incl
 		if !cmp.Equal((ImageEntrypoint{}), ic.Entrypoint) ||
 			ic.Cmd != "" ||
 			ic.StopSignal != "" ||
+			ic.Healthcheck != nil ||
 			ic.WorkDir != "" ||
 			!cmp.Equal((ImageAccounts{}), ic.Accounts) ||
 			len(ic.Environment) != 0 ||
@@ -127,6 +128,11 @@ func (ic *ImageConfiguration) MergeInto(target *ImageConfiguration) error {
 	}
 	if target.StopSignal == "" {
 		target.StopSignal = ic.StopSignal
+	}
+	if target.Healthcheck == nil && ic.Healthcheck != nil {
+		healthcheck := *ic.Healthcheck
+		healthcheck.Test = slices.Clone(healthcheck.Test)
+		target.Healthcheck = &healthcheck
 	}
 	if target.WorkDir == "" {
 		target.WorkDir = ic.WorkDir
@@ -242,6 +248,10 @@ func (ic *ImageConfiguration) Load(ctx context.Context, imageConfigPath string, 
 
 // Do preflight checks and mutations on an image configuration.
 func (ic *ImageConfiguration) Validate() error {
+	if _, err := ic.Healthcheck.ToHealthConfig(); err != nil {
+		return err
+	}
+
 	if ic.Entrypoint.Type == "service-bundle" {
 		if err := ic.ValidateServiceBundle(); err != nil {
 			return err

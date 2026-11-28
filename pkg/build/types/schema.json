@@ -114,6 +114,10 @@
           "type": "string",
           "description": "Optional: The stop signal used to suspend the execution of the containers process"
         },
+        "healthcheck": {
+          "$ref": "#/$defs/ImageHealthcheck",
+          "description": "Optional: Runtime healthcheck stored as Docker image metadata."
+        },
         "work-dir": {
           "type": "string",
           "description": "Optional: The working directory of the container"
@@ -256,6 +260,41 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "ImageHealthcheck": {
+      "properties": {
+        "test": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1,
+          "description": "Test is a list starting with CMD or CMD-SHELL, followed by the command,\nor a single NONE to disable the check."
+        },
+        "interval": {
+          "type": "string",
+          "description": "Interval is the time between checks, expressed as a duration such as 30s."
+        },
+        "timeout": {
+          "type": "string",
+          "description": "Timeout is the maximum duration of an individual check."
+        },
+        "start-period": {
+          "type": "string",
+          "description": "StartPeriod is the duration of the startup grace period."
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Retries is the number of consecutive failures before the container is unhealthy."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "test"
+      ],
+      "description": "ImageHealthcheck configures a Docker-compatible container healthcheck."
     },
     "Layering": {
       "properties": {

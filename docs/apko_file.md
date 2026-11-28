@@ -154,6 +154,31 @@ will be executed with `/bin/sh -c`. If `entrypoint.command` is set, `cmd` will b
 runtime. By default this is SIGTERM. Be careful when using this alongside a `service-bundle`
 entrypoint which will intercept and potentially reinterpret the signal.
 
+### Healthcheck top level element
+
+`healthcheck` sets [Docker-compatible healthcheck metadata](https://docs.docker.com/reference/dockerfile/#healthcheck)
+on the image. A runtime that recognizes this metadata runs the command inside the container.
+
+```yaml
+healthcheck:
+  test: ["CMD", "/usr/bin/my-service", "healthcheck"]
+  interval: 30s
+  timeout: 5s
+  start-period: 10s
+  retries: 3
+```
+
+`CMD` runs an executable with the specified arguments. `CMD-SHELL` takes a single command string
+and requires a shell in the image. Use `test: ["NONE"]` to disable a check inherited through
+`include`. A `healthcheck` block replaces the entire block from an included configuration.
+
+The timing fields are optional Go duration strings, such as `500ms` or `1m30s`. Each
+nonzero duration must be at least 1ms. Omitting a timing field or setting it to zero leaves
+that value to the runtime. `retries` counts consecutive failures and must be nonnegative.
+
+Healthchecks are a Docker extension to the OCI image config. Runtime support depends on the
+consumer and image format. Kubernetes probes are configured on the Pod spec.
+
 ### Work-dir top level element
 
 Sets the working directory for the image. Entrypoint and Cmd commands are taken as relative to

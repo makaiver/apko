@@ -22,6 +22,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
+	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	ggcrtypes "github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/stretchr/testify/require"
@@ -166,6 +167,57 @@ func TestBuildImageFromLayer(t *testing.T) {
 			if d := cmp.Diff(c.want, gotcfg); d != "" {
 				t.Errorf("ConfigFile() mismatch (-want +got):\n%s", d) //nolint:forbidigo
 			}
+		})
+	}
+}
+
+func TestBuildImageFromLayer_Healthcheck(t *testing.T) {
+	layer := static.NewLayer([]byte("hello"), ggcrtypes.OCILayer)
+	baseConfig, err := empty.Image.ConfigFile()
+	require.NoError(t, err)
+	baseConfig = baseConfig.DeepCopy()
+	baseConfig.Config.Healthcheck = &v1.HealthConfig{Test: []string{"CMD", "/bin/false"}}
+	base, err := mutate.ConfigFile(empty.Image, baseConfig)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name        string
+		healthcheck *types.ImageHealthcheck
+		want        *v1.HealthConfig
+	}{
+		{
+			name: "inherit base healthcheck",
+			want: baseConfig.Config.Healthcheck,
+		},
+		{
+			name: "exec form and timings",
+			healthcheck: &types.ImageHealthcheck{
+				Test:     []string{"CMD", "/bin/true", "an argument with spaces"},
+				Interval: "30s", Timeout: "500ms", StartPeriod: "1m30s", Retries: 3,
+			},
+			want: &v1.HealthConfig{
+				Test:     []string{"CMD", "/bin/true", "an argument with spaces"},
+				Interval: 30 * time.Second, Timeout: 500 * time.Millisecond, StartPeriod: 90 * time.Second, Retries: 3,
+			},
+		},
+		{
+			name:        "shell form with runtime defaults",
+			healthcheck: &types.ImageHealthcheck{Test: []string{"CMD-SHELL", "test -f /tmp/ready || exit 1"}, StartPeriod: "0s"},
+			want:        &v1.HealthConfig{Test: []string{"CMD-SHELL", "test -f /tmp/ready || exit 1"}},
+		},
+		{
+			name:        "disable base healthcheck",
+			healthcheck: &types.ImageHealthcheck{Test: []string{"NONE"}},
+			want:        &v1.HealthConfig{Test: []string{"NONE"}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ic := types.ImageConfiguration{Healthcheck: tc.healthcheck}
+			img, err := BuildImageFromLayer(t.Context(), base, layer, ic, time.Now(), types.ParseArchitecture("amd64"))
+			require.NoError(t, err)
+			cfg, err := img.ConfigFile()
+			require.NoError(t, err)
+			require.Equal(t, tc.want, cfg.Config.Healthcheck)
 		})
 	}
 }

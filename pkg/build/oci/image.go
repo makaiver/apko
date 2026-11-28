@@ -193,6 +193,13 @@ func BuildImageFromLayers(ctx context.Context, baseImage v1.Image, layers []v1.L
 	if ic.StopSignal != "" {
 		cfg.Config.StopSignal = ic.StopSignal
 	}
+	healthcheck, err := ic.Healthcheck.ToHealthConfig()
+	if err != nil {
+		return nil, err
+	}
+	if healthcheck != nil {
+		cfg.Config.Healthcheck = healthcheck
+	}
 
 	// Signal EROFS-bearing manifests via os.features per
 	// erofs/erofs-image-spec §5.4 so hosts that don't implement the spec can
